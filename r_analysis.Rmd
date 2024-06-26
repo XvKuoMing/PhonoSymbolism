@@ -1,0 +1,430 @@
+---
+title: "research"
+output: html_document
+date: "2024-05-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Преамбула
+Numerous studies has been dedicated to the area of brand-naming. Some of the researches are trying to discover the correlation between brand names likelihood and the sounds they use. Such attempt to map all concepts to specific sounds, is called sound mapping.
+In the following research:
+
+Trninić, Z. (2023). Creating effective brand names with sound symbolic mappings. Strategic Management-International Journal of Strategic Management and Decision Support Systems in Strategic Management, 28(2).
+
+author has been investigated that different phonemes are associated with different qualities of objects. For example, active articulators such as /p/, /b/, /m/ are uttered more frequently when it comes to large objects.
+Despite the fact that results of the paper's investigation indeed justify the hypothesis, the methodology is quit debatable. The most fallible part if presumption is that chosen products i.e. razors and soaps are associated with nothing more but sharpness ans softness. The problem is that razor are actually might be associated with softness, since for some people it is desirable to not get a scratch from using it.
+The aim of this paper is to conduct similar experiment but with notion that the way people associate products is relative to each respondent.
+Hence, the design of new experiment is the following:
+1. For each respondent we generate 6 unique combinations of words. The very words' structure is CV-CV-CV, where each CV is from common categories.
+2. Then we ask to give an association for chosen word
+3. and at last we ask to chose the word again
+
+(the very hypothesis are in google sheets and in mail letter)
+
+# libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+```
+
+
+# Uploading data
+
+
+## main data
+
+```{r}
+data <- read.csv(file="https://raw.githubusercontent.com/XvKuoMing/PhonoSymbolism/main/responses.csv", 
+                 head=TRUE,
+                 sep=",",
+                 stringsAsFactors = TRUE
+                 )  # загрузка
+data
+```
+
+
+## support data
+
+```{r}
+features <- read.csv("https://raw.githubusercontent.com/XvKuoMing/PhonoSymbolism/main/responses_with_features.csv",
+                     head=TRUE,
+                     sep=',',
+                     stringsAsFactors = TRUE)
+features$lastly_chosen_group <- as.integer(features$lastly_chosen_group)
+features$firstly_chosen_group <- as.integer(features$firstly_chosen_group)
+features$is_interested <- as.integer(features$is_interested)
+features
+```
+
+
+# Basic stats
+
+## main data stats
+
+```{r}
+# сделаем длинные данные
+order_group_data <-
+data %>%
+  select(firstly_chosen_group, lastly_chosen_group) %>%
+  pivot_longer(
+    cols=c("firstly_chosen_group", "lastly_chosen_group"),
+    names_to="order",
+    values_to="group"
+  )
+order_group_data
+```
+
+
+```{r}
+# теперь посмотрим как распределены наши данные
+ggplot(data=order_group_data,
+       aes(x=group, group=order, fill=order)) +
+  geom_density(alpha = 0.5) +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+
+```{r}
+# второй вариант
+ggplot(data=order_group_data,
+       aes(x=group,
+           color=order,
+           fill=order
+           )
+       ) +
+  geom_bar(position="dodge") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+
+```
+
+
+```
+Итак, вы заметили, что данные распределены одинаково. Однако, нам важно посмотреть на их корреляцию
+```
+
+```{r}
+data.tabs <-
+data %>%
+  select(firstly_chosen_group, lastly_chosen_group) %>%
+  table()
+data.tabs
+```
+
+```{r}
+# посмотрим на тепловой карте данных в долях
+prop.table(data.tabs) %>%
+  heatmap(margins=c(14, 7))
+```
+```
+Видно, что у нас все-таки есть категория, которая используется чаще всех, причем с повторным выбором -- active_artucalor+back и upper_teeth:back
+```
+
+
+```{r}
+# Посчитаем точность совпадения первой и последней группы
+equal_responses <- sum(as.character(data$firstly_chosen_group) == as.character(data$lastly_chosen_group))
+accuracy <- equal_responses / nrow(data)
+
+accuracy # 40 процентов
+```
+
+
+```{r}
+# попробуем посчитать точность совпадения не целой комбинации, а отдельной категории
+data.separated <-
+data %>%
+  select(user_id, is_interested, firstly_chosen_group, lastly_chosen_group) %>%
+  separate(firstly_chosen_group, c("firstly_con", "firstly_vow"), sep='\\+') %>%
+  separate(lastly_chosen_group, c("lastly_con", "lastly_vow"), sep='\\+')
+
+equal_responses_con <- sum(as.character(data.separated$firstly_con) == as.character(data.separated$lastly_con))
+accuracy_con <- equal_responses_con / nrow(data.separated)
+equal_responses_vow <- sum(as.character(data.separated$firstly_vow) == as.character(data.separated$lastly_vow))
+accuracy_vow <- equal_responses_vow / nrow(data.separated)
+
+cat("Точность совпадения согласных групп", accuracy_con, "\n")
+cat("Точность совпадения гласных групп", accuracy_vow, "\n")
+cat("Общая точность", (accuracy_con + accuracy_vow) / 2, "\n")
+```
+
+
+```{r}
+# Посмотрим что конкретно совпадает
+# сначала рассмотрим согласные
+data.separated.cons_tab <-
+data.separated %>%
+  select(firstly_con, lastly_con) %>%
+  table()
+data.separated.cons_tab
+```
+
+
+```{r}
+data.separated.cons_tab %>%
+  prop.table() %>%
+  heatmap(margins=c(16, 11))
+```
+
+```{r}
+# теперь рассмотрим гласные
+data.separated.vow_tab <-
+data.separated %>%
+  select(firstly_vow, lastly_vow) %>%
+  table()
+data.separated.vow_tab
+```
+```
+Итак, по статистике мы можем сказать, что есть категории, выбор которых перевешивает над другими.Особенно это касается задних гласных: /a/, /u/
+```
+
+
+```{r}
+# Проверим, насколько различны значения в зависимости от ответа респондента на вопрос: был бы ему самому интересен продукт таким названием (смотрим только первую группы так как именно относительно нее был задан вопрос)
+data.interest <-
+  data %>%
+  select(firstly_chosen_group, is_interested) %>%
+  table()
+data.interest
+```
+```{r}
+ggplot(data=data,
+       aes(x=firstly_chosen_group,
+           color=is_interested,
+           fill=is_interested
+           )
+       ) +
+  geom_bar(position="dodge") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+
+```{r}
+# Попробуем провести ту же аналитику для гласных и согласных по отдельности
+data.separated %>%
+  select(firstly_vow, is_interested) %>%
+  ggplot(aes(x=firstly_vow,
+             color=is_interested,
+             fill=is_interested
+           )
+         ) +
+  geom_bar(position="dodge") +
+  scale_x_discrete(guide = guide_axis(angle = 90)) # видно, что коммерческая привлекательность задних гласных 100%
+```
+
+
+```{r}
+data.separated %>%
+  select(firstly_con, is_interested) %>%
+  ggplot(aes(x=firstly_con,
+             color=is_interested,
+             fill=is_interested
+           )
+         ) +
+  geom_bar(position="dodge") +
+  scale_x_discrete(guide = guide_axis(angle = 90)) # аналогичная ситуация для верхних зубных и активных артикуляторов
+```
+
+
+
+## support data stats
+
+
+```{r}
+# попробуем посмотреть насколько выбранные ассоциации коррелируют с таргет категориями по звукам
+features %>%
+  select(soft_palate, back, front, active_articulator, upper_teeth) %>%
+  summary()
+```
+
+
+```{r}
+# Попробуем посмотреть, насколько сами ассоциации связаны со звуками
+# перед тем как провести тест, посмотрим на распределение данных
+features %>%
+  pivot_longer(c("back", "active_articulator", "upper_teeth"),
+               names_to = "feature",
+               values_to = "value") %>%
+  select(feature, value) %>%
+  ggplot(
+    aes(x=value,
+        fill=feature,
+        color=feature)
+  ) +
+  geom_histogram(position="dodge", bins=6)
+
+```
+
+
+```{r}
+# проверим с помощью теста
+features %>%
+  select(firstly_chosen_group, back, upper_teeth, active_articulator, front, soft_palate) %>%
+  group_by(firstly_chosen_group) %>%
+  apply(2, shapiro.test)
+```
+
+
+```
+Уже по графику понятно, что эти данные не распределены равномерно, мы это будем учитывать во время тестов
+
+```
+
+
+
+# Tests
+
+
+
+## main test
+
+```
+Так как мы имеем дело с категориальными переменными и размер нашей выборки довольно небольшой, то возникает предлоположение использовать Тест Фишера
+Сформулируем для него гипотезы:
+H0: выбора последней фразы НЕ зависит от выбора первой
+H1: выбор последней фразы зависит от выбора первой
+```
+
+
+```{r}
+fisher.test(data.tabs)
+```
+```
+Видим, что p-value > 0.5 (наш доверительный интервал). Следовательно, наши категориальные переменные независимы
+```
+
+```{r}
+# проверим взаимосвязь данных в ином формате
+order_group_data %>%
+  table() %>%
+  fisher.test() # получили аналогичный результат
+```
+
+```{r}
+# также проведем тесты для согласных и гласных групп по отдельности
+data.separated.vow_tab %>%
+  fisher.test()
+```
+
+
+```{r}
+data.separated.cons_tab %>%
+  fisher.test()
+```
+
+
+```
+Итак, по серии наших тестов мы можем заключить, что никакие фонетические категории и их комбинации не влияют на выбор последующих названий
+```
+
+
+
+## support tests
+
+```
+Теперь мы наработали определенное понимание данных. Мы можем начать проводить тесты наших гипотез.
+Начнем с вспомогательных данных
+```
+
+
+
+### Interest independence
+
+```
+H0: There is not relation between interest and word's category choices
+H1: There is a relation between interest and word's category choices
+```
+
+```{r}
+data %>%
+  select(is_interested, firstly_chosen_group) %>%
+  table() %>%
+  fisher.test()
+```
+
+
+```{r}
+data %>%
+  select(is_interested, lastly_chosen_group) %>%
+  table() %>%
+  fisher.test()
+```
+
+
+
+```{r}
+data.separated %>%
+  select(is_interested, firstly_vow) %>%
+  table() %>%
+  fisher.test()
+```
+
+
+```{r}
+data.separated %>%
+  select(is_interested, lastly_vow) %>%
+  table() %>%
+  fisher.test()
+```
+
+
+
+```{r}
+data.separated %>%
+  select(is_interested, firstly_con) %>%
+  table() %>%
+  fisher.test()
+```
+
+
+
+```{r}
+data.separated %>%
+  select(is_interested, lastly_con) %>%
+  table() %>%
+  fisher.test()
+```
+
+## association independence
+
+
+```
+У половины наших переменных p-value < 0.05, следовательно мы отвергаем нулевую гипотезу о нормальном распределении.
+В качестве теста на зависимость переменных воспользуемся генерализированной линейной регрессией с распределением Poisson 
+```
+
+
+```{r}
+glm_first_group <- 
+  glm(firstly_chosen_group ~ active_articulator + upper_teeth + back + front + soft_palate, 
+      data=features,
+      family = poisson())
+summary(glm_first_group)
+```
+
+```
+Видно, что всю работу по предсказанию значений сделал искусственно подобранный интерсепт, а не наших переменные. Это же подверждается и на значениях p-value. Они больше чем 0.05, следовательно, независимы от целевой переменной
+```
+
+
+```{r}
+plot(cooks.distance(glm_first_group), type='b', pch = 16, col = "blue")
+N <- nrow(features)
+k <- 6
+cutoff <- 1 / (N - k - 1)
+abline(h=cutoff,lty=2)
+```
+
+```{r}
+# посмотрим как именно линейная регрессия обходит наши данные
+plot(glm_first_group, which=1)
+```
+
+```
+Вывод: наличие хоть каких-то зависимостей между фонетической комбинации ассоциаций и выбранных категорий - случайность
+```
